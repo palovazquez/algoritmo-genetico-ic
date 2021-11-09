@@ -1,6 +1,8 @@
+const probability = 0.5;
+const minFitness = 680;
 const geneLength = 10;
 const genes = [0, 1];
-let poblacion;
+let poblacion = [];
 const pesos = [100, 155, 50, 112, 70, 80, 60, 118, 110, 55];
 const demes = false; //para que los cromosomas en el torneo sean consecutivos
 
@@ -19,9 +21,7 @@ generatePopulation = (size) => {
       genotype.push(randomGene);
     }
     if (fitness(genotype) <= 700) {
-      population.push({ genotype });
-      console.log("cromosoma " + i + ": ", genotype);
-      console.log("fitness: ", fitness(genotype));
+      population.push(genotype);
     }
     i++;
   } while (population.length < size);
@@ -43,11 +43,18 @@ fitness = (cromosoma) => {
 tournament = (G1, G2) => {
   const f1 = fitness(G1);
   const f2 = fitness(G2);
+  console.log("---SELECCIÓN POR TORNEO---")
+  console.log("Competidores: " + G1 + "(" + f1 + "), "+ G2 + "(" + f2 + ")")
   if (f1 > f2) {
+    console.log("Cromosoma ganador: G1")
+    console.log("------")
     return [1, 0];
   } else {
+    console.log("Cromosoma ganador G2")
+    console.log("------")
     return [0, 1];
   }
+
 };
 
 //CRUZA EN 2 PUNTOS
@@ -56,27 +63,28 @@ tournament = (G1, G2) => {
  * @param {Genotype} winner
  * @param {Genotype} loser
  */
-twoPointCrossover = (winner, loser) => {
-  console.log("crom1 :", winner);
-  console.log("crom2 :", loser);
+twoPointCrossover = (padre1, padre2) => {
   let son1, son2, sections;
+  console.log("---CRUZA EN 2 PUNTOS---")
+  console.log("Competidores: " + padre1 + ", " + padre2)
   do {
     sections = [
-      Math.floor(Math.random() * winner.length),
-      Math.floor(Math.random() * winner.length),
+      Math.floor(Math.random() * padre1.length),
+      Math.floor(Math.random() * padre1.length),
     ].sort((a, b) => a - b);
-    console.log("secciones: ", sections);
     son1 = [].concat(
-      winner.slice().splice(0, sections[0]),
-      loser.slice().splice(sections[0], sections[1] - sections[0]),
-      winner.slice().splice(sections[1])
+      padre1.slice().splice(0, sections[0]),
+      padre2.slice().splice(sections[0], sections[1] - sections[0]),
+      padre1.slice().splice(sections[1])
     );
     son2 = [].concat(
-      loser.slice().splice(0, sections[0]),
-      winner.slice().splice(sections[0], sections[1] - sections[0]),
-      loser.slice().splice(sections[1])
+      padre2.slice().splice(0, sections[0]),
+      padre1.slice().splice(sections[0], sections[1] - sections[0]),
+      padre2.slice().splice(sections[1])
     );
-  } while (fitness(winner) > 700 || fitness(loser) > 700);
+  } while (fitness(padre1) > 700 || fitness(padre2) > 700);
+  console.log("Hijos resultantes: " + son1 + ", " + son2);
+  console.log("------")
   return [son1, son2];
 };
 
@@ -86,38 +94,79 @@ twoPointCrossover = (winner, loser) => {
  * @param {Genotype} G
  */
 mutate = (G) => {
-  do {
-    const pos = Math.floor(Math.random() * G.length);
-    G[pos] = G[pos] ? 0 : 1;
-  } while (fitness(winner) > 700);
+  if(Math.random() < probability) {
+    do {
+      const pos = Math.floor(Math.random() * G.length);
+      G[pos] = G[pos] ? 0 : 1;
+    } while (fitness(G) > 700);
+  }
   return G;
-};
-
-// INICIO del programa
-
-generatePopulation(10);
-let index = 0;
-//let newGeneration;
-let parents = [];
-
-for (let i = 0; i < poblacion.length / 2; i++) {
-  const resultadoTorneo = tournament(poblacion[index], poblacion[index + 1]);
-
-  parents.push(resultadoTorneo[0] ? poblacion[index] : poblacion[index + 1]);
-
-  console.log("Population: ", populationFinal);
-  console.log("Cromosomas a competir: ", competitorsIndexes);
-  console.log("Resultado torneo: ", resultadoTorneo);
-
 }
 
+// AUXILIARES
 
-/*
-const cruza = twoPointCrossover(
-  populationFinal[competitorsIndexes[0]].genotype,
-  populationFinal[competitorsIndexes[1]].genotype
-);
-console.log('Resultado cruza: ', cruza);
-console.log('Perdedor: ', loser);
-console.log('Resultado mutación: ', mutate(loser));
-*/
+  /*
+   * Select two random indices of the population
+   */
+selectRandomGenotypes = (tamanioPadres) => {
+    let index1,index2;
+    while(index1 === index2) {
+        index1 = Math.floor(Math.random()*tamanioPadres);
+        index2 = Math.floor(Math.random()*tamanioPadres);
+    }
+    return [index1,index2];
+}
+
+mejorFitness = (poblacion) => {
+  let cromosoma
+  const resultado = poblacion.reduce( (max, c) => {
+    if(fitness(c) > max && fitness(c) > minFitness) {
+      cromosoma = [...c]
+      return fitness(c)
+    }
+    return max
+  }, 0)
+  
+  return {cromosoma, resultado}
+}
+
+// -- INICIO del programa
+generatePopulation(10);
+const maxNumeroDeGeneraciones = 10;
+let nroGeneracion = 0;
+
+do {
+
+  let index = 0;
+  let padres = [];
+  let hijos = [];
+  
+  // Seleccionar padres a cruzar
+  for (let i = 0; i < poblacion.length / 2; i++) {
+    const resultadoTorneo = tournament(poblacion[index], poblacion[index+1]);
+    padres.push(resultadoTorneo[0] ? poblacion[index] : poblacion[index+1]);
+    index+=1;
+  }
+  do {
+    const padresACruzar = selectRandomGenotypes(padres.length);
+    const cruza = twoPointCrossover(
+      padres[padresACruzar[0]],
+      padres[padresACruzar[1]]
+    );
+  
+    hijos.push(mutate(cruza[0]));
+    hijos.push(mutate(cruza[1]));
+  
+  } while(hijos.length < poblacion.length)
+  
+  poblacion = [...hijos];
+  nroGeneracion+=1;
+  console.log("---GENERACIÓN NÚMERO: " + nroGeneracion + "---" )
+  
+} while(nroGeneracion < maxNumeroDeGeneraciones || !mejorFitness(poblacion).resultado)
+
+// Resultado Final
+const {cromosoma, resultado} = mejorFitness(poblacion)
+console.log("POBLACIÓN FINAL: " + poblacion + " NUMERO: " + nroGeneracion);
+console.log("CROMOSOMA GANADOR: " + cromosoma + ",  FITNESS: " + resultado);
+
